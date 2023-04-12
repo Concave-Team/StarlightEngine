@@ -1,5 +1,7 @@
 ﻿using StarlightEngine;
 using StarlightEngine.Renderer;
+using StarlightEngine.Renderer.OpenGL;
+using System.Drawing;
 
 namespace RenderTests
 {
@@ -12,24 +14,31 @@ namespace RenderTests
 
             rend = Renderer.Create(API.OpenGL, window);
 
-            window.r_OnLoad = Load;
-            window.r_OnRender = Render;
-
+            rend.ClearingColor = Color.Red;
 
             window.Run();
-        }
 
-        static void Load()
-        {
             rend.Init();
-        }
 
-        static void Render(double delta)
-        {
-            Console.WriteLine("F");
-            rend.Clear();
+            try
+            {
+                while (!window.WindowShouldClose())
+                {
+                    rend.Clear();
 
-            rend.EndFrame();
+                    rend.DrawTriangle();
+
+                    rend.EndFrame();
+                }
+                window.Exit();
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine("Lil' exception happened here, oh no!");
+                Console.WriteLine(e.Message+" "+e.StackTrace+" "+e.Source);
+                window.Exit();
+                return;
+            }
         }
     }
 }

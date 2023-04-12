@@ -29,6 +29,8 @@ namespace StarlightEngine.Renderer
 
         public abstract void Exit();
 
+        public abstract bool WindowShouldClose();
+
         public static Window Create(API usedAPI, string name, Vector2 size)
         {
             switch(usedAPI)

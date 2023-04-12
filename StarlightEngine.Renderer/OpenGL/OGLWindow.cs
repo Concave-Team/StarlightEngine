@@ -7,12 +7,14 @@ using Silk.NET.Windowing;
 using System.Numerics;
 using Silk.NET.Input;
 using Silk.NET.Maths;
-using Silk.NET.Windowing;
+using Silk.NET.Windowing.Glfw;
 using Silk.NET.SDL;
+using Silk.NET.GLFW;
+using System.Runtime.InteropServices;
 
 namespace StarlightEngine.Renderer.OpenGL
 {
-    public class OGLWindow : Window
+    public unsafe class OGLWindow : Window
     {
         public Action<double> r_OnUpdate { get; set; }
         public Action<double> r_OnRender { get; set; }
@@ -20,28 +22,41 @@ namespace StarlightEngine.Renderer.OpenGL
 
         public string Name = "Undefined Window";
         public Vector2 Size = new Vector2(800,600);
-        public IWindow _Handle { get; set; }
+        public WindowHandle* _Handle { get; set; }
+        public GlfwNativeWindow _natHandle { get; set; }
+        public GlfwContext _glContext { get; set; }
         public bool CurrentlyRunning = false;
 
-        public override void Run()
+        public Glfw GlfwAPI;
+
+        public unsafe override void Run()
         {
             CurrentlyRunning = true;
-            _Handle.Run();
+            GlfwAPI.MakeContextCurrent(_Handle);
         }
 
-        public override void Exit()
+        public unsafe override void Exit()
         {
-            _Handle.Close();
+            GlfwAPI.DestroyWindow(_Handle);
+            GlfwAPI.Terminate();
         }
 
-        public override void ModifyName(string name)
+        public unsafe override bool WindowShouldClose()
         {
-            _Handle.Title = name;
+            return GlfwAPI.WindowShouldClose(_Handle);
         }
 
-        public override void ModifySize(Vector2 size)
+        public unsafe override void ModifyName(string name)
         {
-            _Handle.Size = size.ToSilkV2();
+            Name = name;
+            GlfwAPI.SetWindowTitle(_Handle, name);
+        }
+
+        public unsafe override void ModifySize(Vector2 size)
+        {
+            Size = size;
+
+            GlfwAPI.SetWindowSize(_Handle, (int)Size.X, (int)Size.Y);
         }
 
         internal void OnKeyDown(IKeyboard arg1, Key arg2, int arg3)
@@ -55,18 +70,18 @@ namespace StarlightEngine.Renderer.OpenGL
         }
 
         // Internal Load, user load function is run inside.
-        private void _Handle_Load()
+        private unsafe void _Handle_Load()
         {
             r_OnLoad();
 
-            IInputContext input = _Handle.CreateInput();
+            /*IInputContext input = _Handle.CreateInput();
             for (int i = 0; i < input.Keyboards.Count; i++)
             {
                 input.Keyboards[i].KeyDown += OnKeyDown;
-            }
+            }*/
         }
 
-        public OGLWindow(Action<double> r_OnUpdate, Action<double> r_OnRender, Action r_OnLoad, string name, Vector2 size)
+        public unsafe OGLWindow(Action<double> r_OnUpdate, Action<double> r_OnRender, Action r_OnLoad, string name, Vector2 size)
         {
             this.r_OnUpdate = r_OnUpdate ?? throw new ArgumentNullException(nameof(r_OnUpdate));
             this.r_OnRender = r_OnRender ?? throw new ArgumentNullException(nameof(r_OnRender));
@@ -77,11 +92,7 @@ namespace StarlightEngine.Renderer.OpenGL
             var Opts = WindowOptions.Default;
             Opts.Size = Size.ToSilkV2();
             Opts.Title = Name;
-            _Handle = Silk.NET.Windowing.Window.Create(Opts);
 
-            _Handle.Load += _Handle_Load;
-            _Handle.Render += _Handle_Render;
-            _Handle.Update += this.r_OnUpdate;
         }
 
         private void _Handle_Render(double obj)
@@ -90,7 +101,7 @@ namespace StarlightEngine.Renderer.OpenGL
             this.r_OnRender(obj);
         }
 
-        public OGLWindow(string name, Vector2 size)
+        public unsafe OGLWindow(string name, Vector2 size)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Size = size;
@@ -98,7 +109,36 @@ namespace StarlightEngine.Renderer.OpenGL
             var Opts = WindowOptions.Default;
             Opts.Size = Size.ToSilkV2();
             Opts.Title = Name;
-            _Handle = Silk.NET.Windowing.Window.Create(Opts);
+
+            GlfwAPI = Glfw.GetApi();
+
+            if(!GlfwAPI.Init())
+            {
+                GlfwAPI.Terminate();
+                byte* desc = (byte*)IntPtr.Zero;
+                var errCode = GlfwAPI.GetError(out desc);
+                throw new Exception("GLFW API could not be initialized. ERRCODE: "+errCode);
+            }
+
+            GlfwAPI.WindowHint(WindowHintBool.Resizable, true);
+            GlfwAPI.WindowHint(WindowHintInt.ContextVersionMajor, 4);
+            GlfwAPI.WindowHint(WindowHintInt.ContextVersionMinor, 5);
+            GlfwAPI.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Core);
+
+            _Handle = GlfwAPI.CreateWindow((int)size.X, (int)size.Y, Name, null, null);
+
+            if(_Handle == null)
+            {
+                byte* desc = (byte*)IntPtr.Zero;
+                var errCode = GlfwAPI.GetError(out desc);
+                throw new Exception("Error while making GLFW window. WHND is Null. Error Code: "+errCode+" DESC: "+Marshal.PtrToStringAuto((IntPtr)desc));
+            }
+
+            _natHandle = new GlfwNativeWindow(GlfwAPI, _Handle);
+
+            _glContext = new GlfwContext(GlfwAPI, _Handle);
+
+            GlfwAPI.MakeContextCurrent(_Handle);
         }
     }
 }

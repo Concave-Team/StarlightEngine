@@ -1,9 +1,11 @@
 ﻿using StarlightEngine.Renderer.OpenGL;
+using System.Drawing;
 
 namespace StarlightEngine.Renderer
 {
     public abstract class Renderer
     {
+        public Color ClearingColor { get; set; }
         public abstract void DrawCube();
         public abstract void DrawPlane();
         public abstract void DrawPoint();
